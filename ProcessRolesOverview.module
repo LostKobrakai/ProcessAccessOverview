@@ -1,0 +1,159 @@
+<?php
+
+
+class ProcessRolesOverview extends Process implements ConfigurableModule {
+
+	/**
+	 * Return information about this module (required)
+	 *
+	 */
+	public static function getModuleInfo() {
+		return array(
+			'title' => 'Roles Overview', 
+			'summary' => 'Quick Overview over roles', 
+			'version' => 1, 
+			'author' => 'Benjamin Milde', 
+			'role' => 'superuser', 
+			); 
+	}
+
+	const pageName = 'rolesOvervie';
+
+	public function init() {
+		parent::init(); // required
+
+		$this->modules->get('JqueryWireTabs');
+	}
+
+	public function ___execute() {
+
+		$roles = $this->usedRoles;
+		$templates = wire('templates');
+
+		$names = [];
+
+		foreach($roles as $key => $role){
+			$roles[$key] = $this->roles->get($role);
+			$names[] = $role;
+		}
+
+		$tables = array( 
+			"Viewable" => "User can view pages of this template.", 
+			"Editable" => "User can edit pages of this template.", 
+			"Addable" => "User can add children to pages of this template.",
+			"Create" => "User can create pages of this template."
+			);
+
+		$form = $this->modules->get("InputfieldForm");
+		$form->attr('id', 'ProcessRolesOverviewForm');
+
+		foreach($tables as $label => $desc){
+
+			$table = $this->wire('modules')->get('MarkupAdminDataTable');
+			$table->setSortable(true);
+			$table->setEncodeEntities(false);
+			$table->headerRow(array_merge(["template"], $names));
+
+			foreach($templates as $template){
+				if(!$template->useRoles) continue;
+
+				$activeRoles = array(
+					"Viewable" => $template->roles->explode("id"),
+					"Editable" => $template->editRoles,
+					"Addable" => $template->addRoles,
+					"Create" => $template->createRoles
+				);
+
+				$edit_url = wire('config')->urls->admin."setup/template/edit?id=".$template->id;
+				$data = [];
+				foreach($roles as $role){
+					if( in_array($role->id, $activeRoles[$label]) ){
+						$data[] = "<i class='fa fa-check state-green'></i>";
+					}else{
+						$data[] = "<i class='fa fa-times state-red'></i>";
+					}
+				}
+				$table->row(array_merge([$template->get("label|name") => $edit_url], $data ));
+			}
+
+			$markup = $this->modules->get("InputfieldMarkup");
+			$markup->markupText = $table->render();
+
+			$fieldset = new InputfieldWrapper();
+			$fieldset->attr('class', 'WireTab');
+			$fieldset->attr('title', $label);
+			$fieldset->description = $desc; 
+			$fieldset->append($markup);
+			$form->append($fieldset);
+
+		}
+
+		$table = $this->wire('modules')->get('MarkupAdminDataTable');
+		$table->setSortable(false);
+		$table->setEncodeEntities(false);
+		$table->headerRow(array_merge(["template"], $names));
+
+		foreach($templates as $template){
+			if($template->useRoles) continue;
+
+			$edit_url = wire('config')->urls->admin."setup/template/edit?id=".$template->id;
+			$table->row(array($template->get("label|name") => $edit_url));
+		}
+
+		$markup = $this->modules->get("InputfieldMarkup");
+		$markup->markupText = $table->render();
+
+		$fieldset = new InputfieldWrapper();
+		$fieldset->attr('class', 'WireTab');
+		$fieldset->attr('title', 'Inherit Access'); 
+		$fieldset->description = "Access is inherited from the parent page's template."; 
+		$fieldset->append($markup);
+		$form->append($fieldset);
+
+		return $form->render();
+	}	
+
+	public function ___install() {
+		$page = new Page();
+		$page->template = 'admin';
+		$page->name = self::pageName; 
+
+		$page->parent = $this->pages->get($this->config->adminRootPageID)->child('name=setup');
+		$page->process = $this; 
+
+		$info = self::getModuleInfo();
+		$page->title = $info['title'];
+		$page->save();
+
+		$this->message("Created Page: {$page->path}"); 
+	}
+
+	public function ___uninstall() {
+		$moduleID = $this->modules->getModuleID($this); 
+		$page = $this->pages->get("template=admin, process=$moduleID, name=" . self::pageName); 
+
+		if($page->id) {
+			$this->message("Deleting Page: {$page->path}"); 
+			$page->delete();
+		}
+	}
+
+	static public function getModuleConfigInputfields(array $data) {
+
+		$usedRoles = isset($data['usedRoles']) ? $data['usedRoles'] : array();
+		$roles = wire('roles'); 
+
+		$inputfields = new InputfieldWrapper();
+		$f = wire('modules')->get('InputfieldAsmSelect');
+		$f->label = __("What roles populate the table?");
+		$f->attr('id+name', 'usedRoles');
+		foreach($roles as $role) {
+			$f->addOption($role->name); 
+		}
+		$f->attr('value', $usedRoles);
+		$inputfields->add($f);
+
+		return $inputfields;
+	}
+	
+}
