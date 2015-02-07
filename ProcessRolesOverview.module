@@ -11,7 +11,7 @@ class ProcessRolesOverview extends Process implements ConfigurableModule {
 		return array(
 			'title' => 'Roles Overview', 
 			'summary' => 'Quick Overview over roles', 
-			'version' => 1, 
+			'version' => 2, 
 			'author' => 'Benjamin Milde', 
 			'icon' => 'sitemap', 
 			); 
