@@ -13,7 +13,7 @@ class ProcessRolesOverview extends Process implements ConfigurableModule {
 			'summary' => 'Quick Overview over roles', 
 			'version' => 1, 
 			'author' => 'Benjamin Milde', 
-			'role' => 'superuser', 
+			'icon' => 'sitemap', 
 			); 
 	}
 
@@ -28,7 +28,11 @@ class ProcessRolesOverview extends Process implements ConfigurableModule {
 	public function ___execute() {
 
 		$roles = $this->usedRoles;
-		$templates = wire('templates');
+		$templates = new WireArray();
+
+		foreach($this->templates->getAll() as $key => $template)
+			if($this->showSystem || $template->flags ^ Template::flagSystem)
+				$templates->add($template);
 
 		$names = [];
 
@@ -38,10 +42,10 @@ class ProcessRolesOverview extends Process implements ConfigurableModule {
 		}
 
 		$tables = array( 
-			"Viewable" => "User can view pages of this template.", 
-			"Editable" => "User can edit pages of this template.", 
-			"Addable" => "User can add children to pages of this template.",
-			"Create" => "User can create pages of this template."
+			"View Pages" => "User can view pages of this template.", 
+			"Edit Pages" => "User can edit pages of this template.", 
+			"Create Pages" => "User can create pages of this template.",
+			"Add Children" => "User can add children to pages of this template.",
 			);
 
 		$form = $this->modules->get("InputfieldForm");
@@ -58,10 +62,10 @@ class ProcessRolesOverview extends Process implements ConfigurableModule {
 				if(!$template->useRoles) continue;
 
 				$activeRoles = array(
-					"Viewable" => $template->roles->explode("id"),
-					"Editable" => $template->editRoles,
-					"Addable" => $template->addRoles,
-					"Create" => $template->createRoles
+					"View Pages" => $template->roles->explode("id"),
+					"Edit Pages" => $template->editRoles,
+					"Add Children" => $template->addRoles,
+					"Create Pages" => $template->createRoles
 				);
 
 				$edit_url = wire('config')->urls->admin."setup/template/edit?id=".$template->id;
@@ -141,9 +145,11 @@ class ProcessRolesOverview extends Process implements ConfigurableModule {
 	static public function getModuleConfigInputfields(array $data) {
 
 		$usedRoles = isset($data['usedRoles']) ? $data['usedRoles'] : array();
+		$showSystem = isset($data['showSystem']) ? $data['showSystem'] : 0;
 		$roles = wire('roles'); 
 
 		$inputfields = new InputfieldWrapper();
+
 		$f = wire('modules')->get('InputfieldAsmSelect');
 		$f->label = __("What roles populate the table?");
 		$f->attr('id+name', 'usedRoles');
@@ -152,6 +158,15 @@ class ProcessRolesOverview extends Process implements ConfigurableModule {
 		}
 		$f->attr('value', $usedRoles);
 		$inputfields->add($f);
+
+		$f2 = wire('modules')->get('InputfieldCheckbox');
+		$f2->label = __("Should system templates be shown?");
+		$f2->label2 = __("Should system templates be shown?"); //__("Activate");
+		$f2->skipLabel = Inputfield::skipLabelFor;
+		$f2->attr('id+name', 'showSystem');
+		$f2->attr('value', $showSystem);
+		$f2->attr('checked', $showSystem);
+		$inputfields->add($f2);
 
 		return $inputfields;
 	}
