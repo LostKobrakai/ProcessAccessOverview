@@ -17,7 +17,7 @@ class ProcessRolesOverview extends Process implements ConfigurableModule {
 			); 
 	}
 
-	const pageName = 'rolesOvervie';
+	const pageName = 'rolesoverview';
 
 	public function init() {
 		parent::init(); // required
@@ -26,6 +26,12 @@ class ProcessRolesOverview extends Process implements ConfigurableModule {
 	}
 
 	public function ___execute() {
+
+		if(!count($this->usedRoles)){
+			$text = "To use this Module you first need to setup some roles to be shown here. ";
+			$text .= "This can be done here: <a href='".wire('config')->urls->admin."module/edit?name=".$this->className()."'>Settings</a>";
+			return $text;
+		}
 
 		$roles = $this->usedRoles;
 		$templates = new WireArray();
@@ -165,7 +171,7 @@ class ProcessRolesOverview extends Process implements ConfigurableModule {
 		$f2->skipLabel = Inputfield::skipLabelFor;
 		$f2->attr('id+name', 'showSystem');
 		$f2->attr('value', $showSystem);
-		$f2->attr('checked', $showSystem);
+		if($showSystem) $f2->attr('checked', "checked");
 		$inputfields->add($f2);
 
 		return $inputfields;
