@@ -5,3 +5,32 @@
 .state-green{
 	color: green;
 }
+
+.muted{
+	color: #ccc;
+	font-size: 80%;
+	font-weight: normal;
+}
+
+.descriptionTable{
+	margin: 0 !important;
+	width: 100%;
+}
+
+.descriptionTable td:first-child{
+	min-width: 81px;
+}
+
+.descriptionTable td{
+	border-bottom: 1px dotted #c8d4e1;
+	border-right: 1px dotted #c8d4e1;
+	padding: 0 .5em;
+}
+
+.descriptionTable tr:last-child td{
+	border-bottom: none;
+}
+
+.descriptionTable td:last-child{
+	border-right: none;
+}

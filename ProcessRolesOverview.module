@@ -11,18 +11,101 @@ class ProcessRolesOverview extends Process implements ConfigurableModule {
 		return array(
 			'title' => 'Roles Overview', 
 			'summary' => 'Quick Overview over roles', 
-			'version' => 2, 
+			'version' => 3, 
 			'author' => 'Benjamin Milde', 
 			'icon' => 'sitemap', 
 			); 
 	}
 
 	const pageName = 'rolesoverview';
+	const devider = " > ";
 
 	public function init() {
 		parent::init(); // required
 
 		$this->modules->get('JqueryWireTabs');
+	}
+
+	protected function searchForParentTemplates($template){
+
+		// Found distinct parent
+		if($template->useRoles){
+			return array($template->get("label|name") => $template->id);
+
+		// No parent but branches left
+		}else if(count($template->parentTemplates)){
+			$recursion = array();
+			foreach($template->parentTemplates as $parent){
+
+				$returnValue = $this->searchForParentTemplates($this->templates->get($parent));
+
+				// transfer dead end up
+				if(array_key_exists(0, $returnValue)){
+					if(array_key_exists(0, $recursion)){
+						array_push($recursion[0], $returnValue[0]);
+					}else{
+						$recursion[0] = $returnValue[0];
+					}
+
+				}else{
+					// Concat keys to branchpaths
+					$keys = array_keys($returnValue);
+					$current = $template->get("label|name");
+					foreach($keys as $key){
+						$recursion[$key.self::devider.$current] = $returnValue[$key];
+					}
+
+				}
+			}
+
+			return $recursion;
+
+		// Dead end
+		}else{
+			return array($template->id);
+
+		}
+	}
+
+	protected function getRowData($template, $roles, $label, $title = false){
+		$activeRoles = array(
+			"View Pages" => $template->roles->explode("id"),
+			"Edit Pages" => $template->editRoles,
+			"Add Children" => $template->addRoles,
+			"Create Pages" => $template->createRoles
+		);
+
+		$data = [];
+		foreach($roles as $role){
+			if( in_array($role->id, $activeRoles[$label]) ){
+				$data[] = "<i class='fa fa-check state-green'".($title ? "title='$title'" : "")."></i>";
+			}else{
+				$data[] = "<i class='fa fa-times state-red'".($title ? "title='$title'" : "")."></i>";
+			}
+		}
+
+		return $data;
+	}
+
+	protected function ___getDescription(){
+		$table = "<table class='descriptionTable'>";
+		$data = array(
+			array("Inherited", "Access is inherited via a fixed tree of allowed parent templates, but the template can be used as child of other templates. See 'Free Inherited Access'."),
+			array("Inherited *", "Access is inherited via a fixed tree of allowed parent templates. The template can not be used as child of other templates.")
+		);
+
+		foreach($data as $tr){
+			$table .= "<tr>";
+			foreach($tr as $td){
+				$table .= "<td>";
+				$table .= $td;
+				$table .= "</td>";
+			}
+			$table .= "</tr>";
+		}
+		$table .= "</table>";
+
+		return $table;
 	}
 
 	public function ___execute() {
@@ -34,11 +117,26 @@ class ProcessRolesOverview extends Process implements ConfigurableModule {
 		}
 
 		$roles = $this->usedRoles;
+		$parTemps = array();
 		$templates = new WireArray();
 
 		foreach($this->templates->getAll() as $key => $template)
 			if($this->showSystem || $template->flags ^ Template::flagSystem)
 				$templates->add($template);
+
+		foreach($templates as $template){
+			if($template->useRoles) continue;
+			$parentTemplates = $this->searchForParentTemplates($template);
+			if(array_key_exists(0, $parentTemplates) && count($parentTemplates) > 1 || !array_key_exists(0, $parentTemplates)){
+				$parTemps[$template->id] = $parentTemplates;
+			}
+
+			// Doesn't work properly, adds new keys till I read it
+			/* 
+			var_dump(count($parentTemplates));
+			$template->parentTemplates = $parentTemplates;
+			*/
+		}
 
 		$names = [];
 
@@ -65,35 +163,61 @@ class ProcessRolesOverview extends Process implements ConfigurableModule {
 			$table->headerRow(array_merge(["template"], $names));
 
 			foreach($templates as $template){
-				if(!$template->useRoles) continue;
+				if(!$template->useRoles && !array_key_exists($template->id, $parTemps)) continue;
 
-				$activeRoles = array(
-					"View Pages" => $template->roles->explode("id"),
-					"Edit Pages" => $template->editRoles,
-					"Add Children" => $template->addRoles,
-					"Create Pages" => $template->createRoles
-				);
+			$edit_url = wire('config')->urls->admin."setup/template/edit?id=".$template->id;
 
-				$edit_url = wire('config')->urls->admin."setup/template/edit?id=".$template->id;
-				$data = [];
-				foreach($roles as $role){
-					if( in_array($role->id, $activeRoles[$label]) ){
-						$data[] = "<i class='fa fa-check state-green'></i>";
-					}else{
-						$data[] = "<i class='fa fa-times state-red'></i>";
+				if(!$template->useRoles && array_key_exists($template->id, $parTemps)){
+					$concatData = array();
+
+					foreach($parTemps[$template->id] as $path => $id){
+						if($path === 0) continue;
+						$parent = $this->templates->get($id);
+						$data = $this->getRowData($parent, $roles, $label, $path);
+
+						$path = substr($path, 0, strrpos($path, self::devider));
+
+						foreach ($data as $key => $value) {
+							$text = $value;
+							if($this->showPaths) $text .= " <span class='muted'>".$path."</span>";
+							if(array_key_exists($key, $concatData)) $concatData[$key] .= "<br>".$text;
+							else $concatData[$key] = $text;
+						}
 					}
+
+					$title = "Access is inherited via a fixed tree of allowed parent templates.";
+					$star = "";
+
+					if(!array_key_exists(0, $parTemps[$template->id])){
+						$title .= " Template can not be used as child of other templates.";
+						$star = " *";
+					}else{
+						$title .= " Template can be used as child of other templates.";
+					}
+
+					$inherited = "<span class='muted' title='$title'>Inherited$star</span>";
+
+					$table->row(array_merge([$template->get("label|name")." ".$inherited => $edit_url], $concatData ));
+
+
+					continue;
 				}
+
+				$data = $this->getRowData($template, $roles, $label);
 				$table->row(array_merge([$template->get("label|name") => $edit_url], $data ));
 			}
 
 			$markup = $this->modules->get("InputfieldMarkup");
 			$markup->markupText = $table->render();
+			$keyTable = $this->modules->get("InputfieldMarkup");
+			$keyTable->markupText = "<div class='muted'>".$this->getDescription()."</div>";
 
 			$fieldset = new InputfieldWrapper();
 			$fieldset->attr('class', 'WireTab');
 			$fieldset->attr('title', $label);
 			$fieldset->description = $desc; 
 			$fieldset->append($markup);
+			$fieldset->append($keyTable);
 			$form->append($fieldset);
 
 		}
@@ -106,6 +230,8 @@ class ProcessRolesOverview extends Process implements ConfigurableModule {
 		foreach($templates as $template){
 			if($template->useRoles) continue;
 
+			if(array_key_exists($template->id, $parTemps) && !array_key_exists(0, $parTemps[$template->id])) continue;
+
 			$edit_url = wire('config')->urls->admin."setup/template/edit?id=".$template->id;
 			$table->row(array($template->get("label|name") => $edit_url));
 		}
@@ -115,7 +241,7 @@ class ProcessRolesOverview extends Process implements ConfigurableModule {
 
 		$fieldset = new InputfieldWrapper();
 		$fieldset->attr('class', 'WireTab');
-		$fieldset->attr('title', 'Inherit Access'); 
+		$fieldset->attr('title', 'Free Inherited Access'); 
 		$fieldset->description = "Access is inherited from the parent page's template."; 
 		$fieldset->append($markup);
 		$form->append($fieldset);
@@ -152,6 +278,7 @@ class ProcessRolesOverview extends Process implements ConfigurableModule {
 
 		$usedRoles = isset($data['usedRoles']) ? $data['usedRoles'] : array();
 		$showSystem = isset($data['showSystem']) ? $data['showSystem'] : 0;
+		$showPaths = isset($data['showPaths']) ? $data['showPaths'] : 0;
 		$roles = wire('roles'); 
 
 		$inputfields = new InputfieldWrapper();
@@ -172,6 +299,15 @@ class ProcessRolesOverview extends Process implements ConfigurableModule {
 		$f2->attr('id+name', 'showSystem');
 		$f2->attr('value', $showSystem);
 		if($showSystem) $f2->attr('checked', "checked");
+		$inputfields->add($f2);
+
+		$f2 = wire('modules')->get('InputfieldCheckbox');
+		$f2->label = __("Should system templates be shown?");
+		$f2->label2 = __("Show paths for inherited access?"); //__("Activate");
+		$f2->skipLabel = Inputfield::skipLabelFor;
+		$f2->attr('id+name', 'showPaths');
+		$f2->attr('value', $showPaths);
+		if($showPaths) $f2->attr('checked', "checked");
 		$inputfields->add($f2);
 
 		return $inputfields;
