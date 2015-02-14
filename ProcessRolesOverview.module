@@ -173,9 +173,10 @@ class ProcessRolesOverview extends Process implements ConfigurableModule {
 					foreach($parTemps[$template->id] as $path => $id){
 						if($path === 0) continue;
 						$parent = $this->templates->get($id);
-						$data = $this->getRowData($parent, $roles, $label, $path);
 
 						$path = substr($path, 0, strrpos($path, self::devider));
+						
+						$data = $this->getRowData($parent, $roles, $label, $path);
 
 						foreach ($data as $key => $value) {
 							$text = $value;
