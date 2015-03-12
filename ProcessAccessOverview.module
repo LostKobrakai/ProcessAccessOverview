@@ -1,7 +1,7 @@
 <?php
 
 
-class ProcessRolesOverview extends Process implements ConfigurableModule {
+class ProcessAccessOverview extends Process implements ConfigurableModule {
 
 	/**
 	 * Return information about this module (required)
@@ -9,16 +9,16 @@ class ProcessRolesOverview extends Process implements ConfigurableModule {
 	 */
 	public static function getModuleInfo() {
 		return array(
-			'title' => 'Roles Overview', 
-			'summary' => 'Quick Overview over roles', 
-			'version' => 3, 
+			'title' => 'Access Overview', 
+			'summary' => 'Overview over the access management of all templates of a site.', 
+			'version' => 5, 
 			'author' => 'Benjamin Milde', 
 			'icon' => 'sitemap', 
 			); 
 	}
 
-	const pageName = 'rolesoverview';
-	const devider = " > ";
+	const pageName = 'accessoverview';
+	const devider = " &rarr; ";
 
 	public function init() {
 		parent::init(); // required
@@ -77,10 +77,14 @@ class ProcessRolesOverview extends Process implements ConfigurableModule {
 
 		$data = [];
 		foreach($roles as $role){
-			if( in_array($role->id, $activeRoles[$label]) ){
-				$data[] = "<i class='fa fa-check state-green'".($title ? "title='$title'" : "")."></i>";
+			if($role->name == "superuser"){
+				$data[] = "<i class='fa fa-check state-green' title='A superuser can access everything'></i>";
+			}else if( in_array($role->id, $activeRoles[$label])){
+				$data[] = "<i class='fa fa-check state-green'".($title ? " title='$title'" : "")."></i>";
+			}else if( in_array($this->roles->getGuestRole()->id, $activeRoles[$label])){
+				$data[] = "<i class='fa fa-check state-green' title='Inherited from guest role.".($title ? " $title" : "")."'></i>";
 			}else{
-				$data[] = "<i class='fa fa-times state-red'".($title ? "title='$title'" : "")."></i>";
+				$data[] = "<i class='fa fa-times state-red'".($title ? " title='$title'" : "")."></i>";
 			}
 		}
 
@@ -174,13 +178,13 @@ class ProcessRolesOverview extends Process implements ConfigurableModule {
 						if($path === 0) continue;
 						$parent = $this->templates->get($id);
 
-						$path = substr($path, 0, strrpos($path, self::devider));
+						//$path = substr($path, 0, strrpos($path, self::devider));
 						
 						$data = $this->getRowData($parent, $roles, $label, $path);
 
 						foreach ($data as $key => $value) {
 							$text = $value;
-							if($this->showPaths) $text .= " <span class='muted'>".$path."</span>";
+							if($this->showPaths && $roles[$key]->name !== "superuser") $text .= " <span class='muted'>".$path."</span>";
 							if(array_key_exists($key, $concatData)) $concatData[$key] .= "<br>".$text;
 							else $concatData[$key] = $text;
 						}
@@ -233,8 +237,14 @@ class ProcessRolesOverview extends Process implements ConfigurableModule {
 
 			if(array_key_exists($template->id, $parTemps) && !array_key_exists(0, $parTemps[$template->id])) continue;
 
+			$superuserOrNot = array();
+			foreach($names as $role) {
+				if($role == "superuser") $superuserOrNot[] = "<i class='fa fa-check state-green' title='A superuser can access everything'></i>";
+				else $superuserOrNot[] = "<i class='fa fa-question' title='Dependent on parent'></i>";
+			}
+
 			$edit_url = wire('config')->urls->admin."setup/template/edit?id=".$template->id;
-			$table->row(array($template->get("label|name") => $edit_url));
+			$table->row(array_merge(array($template->get("label|name") => $edit_url), $superuserOrNot));
 		}
 
 		$markup = $this->modules->get("InputfieldMarkup");
