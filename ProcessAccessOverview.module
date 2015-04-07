@@ -11,7 +11,7 @@ class ProcessAccessOverview extends Process implements ConfigurableModule {
 		return array(
 			'title' => 'Access Overview', 
 			'summary' => 'Overview over the access management of all templates of a site.', 
-			'version' => 6, 
+			'version' => 7, 
 			'author' => 'Benjamin Milde', 
 			'icon' => 'sitemap', 
 			); 
@@ -26,7 +26,9 @@ class ProcessAccessOverview extends Process implements ConfigurableModule {
 		$this->modules->get('JqueryWireTabs');
 	}
 
-	protected function searchForParentTemplates($template, $recursion = 0){
+	protected function searchForParentTemplates($template, $branchChildren = null){
+		if($branchChildren === null) $branchChildren = new TemplatesArray();
+		$branchChildren->add($template);
 
 		// Found distinct parent
 		if($template->useRoles){
@@ -37,8 +39,8 @@ class ProcessAccessOverview extends Process implements ConfigurableModule {
 			$recursion = array();
 			foreach($template->parentTemplates as $parent){
 
-				if($recursion <= 20){
-					$returnValue = $this->searchForParentTemplates($this->templates->get($parent), $recursion+1);
+				if($branchChildren->has($parent)){
+					$returnValue = $this->searchForParentTemplates($this->templates->get($parent), $branchChildren);
 
 					// transfer dead end up
 					if(array_key_exists(0, $returnValue)){
@@ -57,6 +59,9 @@ class ProcessAccessOverview extends Process implements ConfigurableModule {
 						}
 
 					}
+				}else{
+					// Loop detected, break early
+					return array($template->id);
 				}
 			}
 
@@ -292,12 +297,14 @@ class ProcessAccessOverview extends Process implements ConfigurableModule {
 		$usedRoles = isset($data['usedRoles']) ? $data['usedRoles'] : array();
 		$showSystem = isset($data['showSystem']) ? $data['showSystem'] : 0;
 		$showPaths = isset($data['showPaths']) ? $data['showPaths'] : 0;
+		$maxRecursionSearch = isset($data['maxRecursionSearch']) ? $data['maxRecursionSearch'] : 20;
 		$roles = wire('roles'); 
 
 		$inputfields = new InputfieldWrapper();
 
 		$f = wire('modules')->get('InputfieldAsmSelect');
 		$f->label = __("What roles populate the table?");
+		$f->columnWidth = 34;
 		$f->attr('id+name', 'usedRoles');
 		foreach($roles as $role) {
 			$f->addOption($role->name); 
@@ -307,17 +314,19 @@ class ProcessAccessOverview extends Process implements ConfigurableModule {
 
 		$f2 = wire('modules')->get('InputfieldCheckbox');
 		$f2->label = __("Should system templates be shown?");
-		$f2->label2 = __("Should system templates be shown?"); //__("Activate");
+		$f2->label2 = __("Activate");
 		$f2->skipLabel = Inputfield::skipLabelFor;
+		$f2->columnWidth = 33;
 		$f2->attr('id+name', 'showSystem');
 		$f2->attr('value', $showSystem);
 		if($showSystem) $f2->attr('checked', "checked");
 		$inputfields->add($f2);
 
 		$f2 = wire('modules')->get('InputfieldCheckbox');
-		$f2->label = __("Should system templates be shown?");
-		$f2->label2 = __("Show paths for inherited access?"); //__("Activate");
+		$f2->label = __("Show paths for inherited access?");
+		$f2->label2 = __("Activate");
 		$f2->skipLabel = Inputfield::skipLabelFor;
+		$f2->columnWidth = 33;
 		$f2->attr('id+name', 'showPaths');
 		$f2->attr('value', $showPaths);
 		if($showPaths) $f2->attr('checked', "checked");
