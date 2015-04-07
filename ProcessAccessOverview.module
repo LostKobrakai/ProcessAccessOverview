@@ -11,7 +11,7 @@ class ProcessAccessOverview extends Process implements ConfigurableModule {
 		return array(
 			'title' => 'Access Overview', 
 			'summary' => 'Overview over the access management of all templates of a site.', 
-			'version' => 7, 
+			'version' => 8, 
 			'author' => 'Benjamin Milde', 
 			'icon' => 'sitemap', 
 			); 
@@ -26,9 +26,8 @@ class ProcessAccessOverview extends Process implements ConfigurableModule {
 		$this->modules->get('JqueryWireTabs');
 	}
 
-	protected function searchForParentTemplates($template, $branchChildren = null){
-		if($branchChildren === null) $branchChildren = new TemplatesArray();
-		$branchChildren->add($template);
+	protected function searchForParentTemplates($template, $branchChildren = array()){
+		$branchChildren[] = $template->id;
 
 		// Found distinct parent
 		if($template->useRoles){
@@ -39,29 +38,33 @@ class ProcessAccessOverview extends Process implements ConfigurableModule {
 			$recursion = array();
 			foreach($template->parentTemplates as $parent){
 
-				if($branchChildren->has($parent)){
+				if(!in_array($parent, $branchChildren)){
 					$returnValue = $this->searchForParentTemplates($this->templates->get($parent), $branchChildren);
-
-					// transfer dead end up
-					if(array_key_exists(0, $returnValue)){
-						if(array_key_exists(0, $recursion)){
-							array_push($recursion[0], $returnValue[0]);
-						}else{
-							$recursion[0] = $returnValue[0];
-						}
-
-					}else{
-						// Concat keys to branchpaths
-						$keys = array_keys($returnValue);
-						$current = $template->get("label|name");
-						foreach($keys as $key){
-							$recursion[$key.self::devider.$current] = $returnValue[$key];
-						}
-
-					}
 				}else{
-					// Loop detected, break early
-					return array($template->id);
+					//Loop detected - Dead End;
+					$returnValue = array($parent);
+				}
+
+				// transfer dead end up
+				if(array_key_exists(0, $returnValue)){
+					if(is_array($recursion) && array_key_exists(0, $recursion)){
+						array_push($recursion[0], $returnValue[0]);
+					}else{
+						$recursion[0] = $returnValue;
+					}
+
+				}
+
+				// transfer rest up
+				if( count(array_keys($returnValue)) || ( count(array_keys($returnValue)) > 1 && array_key_exists(0, $returnValue) )){
+					// Concat keys to branchpaths
+					$keys = array_keys($returnValue);
+					$current = $template->get("label|name");
+					foreach($keys as $key){
+						if($key === 0) continue;
+						$recursion[$key.self::devider.$current] = $returnValue[$key];
+					}
+
 				}
 			}
 
@@ -141,12 +144,6 @@ class ProcessAccessOverview extends Process implements ConfigurableModule {
 			if(array_key_exists(0, $parentTemplates) && count($parentTemplates) > 1 || !array_key_exists(0, $parentTemplates)){
 				$parTemps[$template->id] = $parentTemplates;
 			}
-
-			// Doesn't work properly, adds new keys till I read it
-			/* 
-			var_dump(count($parentTemplates));
-			$template->parentTemplates = $parentTemplates;
-			*/
 		}
 
 		$names = [];
@@ -297,7 +294,6 @@ class ProcessAccessOverview extends Process implements ConfigurableModule {
 		$usedRoles = isset($data['usedRoles']) ? $data['usedRoles'] : array();
 		$showSystem = isset($data['showSystem']) ? $data['showSystem'] : 0;
 		$showPaths = isset($data['showPaths']) ? $data['showPaths'] : 0;
-		$maxRecursionSearch = isset($data['maxRecursionSearch']) ? $data['maxRecursionSearch'] : 20;
 		$roles = wire('roles'); 
 
 		$inputfields = new InputfieldWrapper();
