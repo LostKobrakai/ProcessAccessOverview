@@ -11,7 +11,7 @@ class ProcessAccessOverview extends Process implements ConfigurableModule {
 		return array(
 			'title' => 'Access Overview', 
 			'summary' => 'Overview over the access management of all templates of a site.', 
-			'version' => 9, 
+			'version' => 10, 
 			'author' => 'Benjamin Milde', 
 			'icon' => 'sitemap', 
 			); 
@@ -104,6 +104,7 @@ class ProcessAccessOverview extends Process implements ConfigurableModule {
 	protected function ___getDescription(){
 		$table = "<table class='descriptionTable'>";
 		$data = array(
+			array("Can't find a template?", "This module does list all templates, but maybe not in a single tab. The first four tabs persent templates which do grant or inherit access rules. The last tab shows all templates, which can be put in places where their access rights can't be predetermined by the module. This differentiation is not fully exclusive, therefore templates can be part of all five tabs if they inherit from templates with and without fixed access rights."),
 			array("Inherited", "Access is inherited via a fixed tree of allowed parent templates, but the template can be used as child of other templates. See 'Free Inherited Access'."),
 			array("Inherited *", "Access is inherited via a fixed tree of allowed parent templates. The template can not be used as child of other templates.")
 		);
@@ -188,7 +189,8 @@ class ProcessAccessOverview extends Process implements ConfigurableModule {
 
 						foreach ($data as $key => $value) {
 							$text = $value;
-							if($this->showPaths && $roles[$key]->name !== "superuser") $text .= " <span class='muted'>".$path."</span>";
+							if($this->showPaths && $roles[$key]->name !== "superuser" && strpos($text, "state-red") === false)
+								$text .= " <span class='muted'>".$path."</span>";
 							if(array_key_exists($key, $concatData)) $concatData[$key] .= "<br>".$text;
 							else $concatData[$key] = $text;
 						}

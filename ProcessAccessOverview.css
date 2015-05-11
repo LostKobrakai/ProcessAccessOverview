@@ -18,13 +18,14 @@
 }
 
 .descriptionTable td:first-child{
-	min-width: 81px;
+	min-width: 160px;
 }
 
 .descriptionTable td{
 	border-bottom: 1px dotted #c8d4e1;
 	border-right: 1px dotted #c8d4e1;
 	padding: 0 .5em;
+	vertical-align: top;
 }
 
 .descriptionTable tr:last-child td{
